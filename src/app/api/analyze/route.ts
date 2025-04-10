@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import * as XLSX from 'xlsx'; // Import xlsx library
 import { google } from '@ai-sdk/google'; // Import Google provider
-import { generateText, generateObject } from 'ai'; // Import generateText and generateObject
+import { generateObject } from 'ai'; // Import generateObject
 import { z } from 'zod';
 
 // --- Constants --- 
@@ -27,46 +26,12 @@ const mappingSchema = z.object({
     questionHeaders: z.array(questionHeaderSchema).describe("An array of objects, each describing a column header identified as a feedback question and whether it's categorical/quantitative (isCategorical=true) or qualitative/free-text (isCategorical=false).")
 });
 
-// --- Mock LLM Function (Placeholder) ---
-// TODO: Implement fully in Step 9
-async function mockAnalyzeFeedback(prompt: string): Promise<{ text: string }> {
-    console.warn('Using mock LLM response!');
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 50)); 
-    // Basic mock response - replace with dynamic logic in Step 9
-    return { text: '"Mock Question 1": mock_category_1\n"Mock Question 2": mock_category_2' };
-}
-
-// Function to get Supabase credentials from environment variables
-function getSupabaseCredentials() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl) {
-        throw new Error('Missing environment variable: SUPABASE_URL');
-    }
-    if (!supabaseAnonKey) {
-        throw new Error('Missing environment variable: SUPABASE_ANON_KEY');
-    }
-
-    return { supabaseUrl, supabaseAnonKey };
-}
-
 export async function POST(req: NextRequest) {
     console.log('Received request in /api/analyze');
     const runId = randomUUID();
     console.log(`Generated run ID: ${runId}`);
 
-    // --- Read Env Vars ---
-    const useMockLlm = process.env.USE_MOCK_LLM === 'true';
-    console.log(`Using mock LLM: ${useMockLlm}`);
-
     try {
-        // Initialize Supabase client
-        const { supabaseUrl, supabaseAnonKey } = getSupabaseCredentials();
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
-        console.log('Supabase client initialized.');
-
         // --- 3.1 Get uploaded file buffer --- 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
@@ -90,7 +55,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'No sheets found in the workbook.' }, { status: 400 });
         }
         const worksheet = workbook.Sheets[firstSheetName];
-        let rows: any[] = XLSX.utils.sheet_to_json(worksheet);
+        let rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
         console.log(`Parsed ${rows.length} rows from sheet: ${firstSheetName}`);
 
         if (rows.length === 0) {
